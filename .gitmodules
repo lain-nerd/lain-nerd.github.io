@@ -1,3 +1,6 @@
 [submodule "sharkrun"]
 	path = sharkrun
 	url = https://github.com/lain-nerd/sharkrun.git
+[submodule "sharktetris"]
+	path = sharktetris
+	url = https://github.com/lain-nerd/sharkrun.git
