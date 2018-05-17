@@ -1,0 +1,145 @@
+<html>
+<body>
+  <canvas id="game" width=800 height=800 style="background-color:black" />
+  <script type="text/javascript">
+    Number.prototype.mod = function(n) {
+      return ((this%n)+n)%n;
+    };
+    const getArray = (length, generator) => {
+      const a = []
+      for(let i=0;i<length;i++) {
+        a[i] = generator();
+      }
+      return a
+    }
+
+    const width = 800;
+    const height= 800;
+
+    const canvas=document.getElementById('game');
+    const ctx=canvas.getContext('2d');
+    ctx.lineWidth=3;
+    const heightMap = getArray(100, () => getArray(100, () => Math.random()))
+
+    
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    const analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 256;
+    var dataArray = new Uint8Array(analyser.frequencyBinCount);
+    let lowFreqSummed = 0
+    analyser.connect(audioCtx.destination)
+    /*
+    navigator.mediaDevices.getUserMedia ( { audio: true } ).then(stream => {
+      const source = audioCtx.createMediaStreamSource(stream);
+      source.connect(analyser)
+    })
+    */
+    var request = new XMLHttpRequest();
+    request.open('GET', './bensound-moose.mp3', true);
+    request.responseType = 'arraybuffer';
+    request.onload = function() {
+      audioCtx.decodeAudioData(request.response, function(buffer) {
+        var source = audioCtx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(analyser);
+        source.loop = true
+        source.start()
+      })
+    };
+    request.send();
+  
+
+    
+    
+    const player = {
+      x: 50.0,
+      y: 50.0
+    }
+
+    const filledPath = (points, color) => {
+      ctx.fillStyle = color
+      ctx.beginPath();
+      ctx.moveTo(points[0].x,points[0].y);
+      for (i = 1; i<points.length; i++) {
+        ctx.lineTo(points[i].x, points[i].y);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    const getHeight = (x,y) => heightMap[x.mod(100)][y.mod(100)]
+
+    const getScreenCoords = (x,y,c) => {
+      const tileX = Math.floor(player.x) + x
+      const tileY = Math.floor(player.y) + y
+      const h = getHeight(tileX,tileY) * Math.pow(3, lowFreqSummed/1000) //uncomment to use the corner height
+      const partX = player.x - Math.floor(player.x) + 0.5
+      const partY = player.y - Math.floor(player.y) + 0.5
+      x -= partX
+      y -= partY
+      return {
+        x: Math.floor(width/2 + x * (width / 15) + x * y*3 + (width/15)),
+        y: Math.floor(height/2 + (y)*(height/(25-y)) - h*20)
+      }
+    }
+
+    const mousePos = {
+      x: 0,
+      y: 0
+    }
+
+    prevTime = null
+
+    render = (t) => {
+      window.requestAnimationFrame(render)
+      const dt = (t - prevTime) / 1000
+      prevTime = t
+      if (dt === NaN) return
+
+      analyser.getByteFrequencyData(dataArray)
+      lowFreqSummed = 0
+      for (let i=0; i < 10; i++) {
+        lowFreqSummed += dataArray[i]
+      }
+
+      player.x = Math.sin(t/1507)*(Math.min(t/500, 50))
+      player.y = Math.cos(t/2763)*(Math.min(t/500,20))
+      
+
+      ctx.clearRect(0,0,width,height)
+
+      for (y = -10; y < 11; y++) {
+        for (x = -20;x < 20; x++) {
+          const tileX = Math.floor(player.x) + x
+          const tileY = Math.floor(player.y) + y
+          const h = getHeight(tileX,tileY)
+
+          const points = [
+            getScreenCoords(x,y),
+            getScreenCoords(x+1,y),
+            getScreenCoords(x+1,y+1),
+            getScreenCoords(x,y+1),
+          ]
+
+          const fade = Math.min((y+10)/10, 1)
+
+          const r = fade * (255-h*255)
+          const g = fade * (h*255)
+          const b = fade * (0.5 + Math.sin(t/1000)/2) * 255
+
+          filledPath(points, 'RGB('+r+','+g+','+b+')')
+        }
+      }
+    }
+
+    canvas.addEventListener('mousemove', e => {
+      mousePos.x = e.clientX - width/2
+      mousePos.y = e.clientY - height / 2
+    })
+
+    window.requestAnimationFrame(render)
+  </script>
+</body>
+</html>
