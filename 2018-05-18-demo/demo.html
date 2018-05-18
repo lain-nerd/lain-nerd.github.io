@@ -36,7 +36,7 @@
     })
     */
     var request = new XMLHttpRequest();
-    request.open('GET', './bensound-moose.mp3', true);
+    request.open('GET', './bensound-moose.ogg', true);
     request.responseType = 'arraybuffer';
     request.onload = function() {
       audioCtx.decodeAudioData(request.response, function(buffer) {
