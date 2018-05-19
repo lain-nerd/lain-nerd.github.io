@@ -64,8 +64,8 @@
     const getHeight = (x,y) => heightMap[x.mod(100)][y.mod(100)]
 
     const getScreenCoords = (x,y) => {
-      const tileX = Math.floor(player.x) + x
-      const tileY = Math.floor(player.y) + y
+      const tileX = Math.floor(camera.x) + x
+      const tileY = Math.floor(camera.y) + y
       const h = getHeight(tileX,tileY) * Math.pow(3, lowFreqSummed/1000)
       const partX = camera.x - Math.floor(camera.x) + 0.5
       const partY = camera.y - Math.floor(camera.y) + 0.5
