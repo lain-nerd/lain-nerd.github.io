@@ -99,8 +99,8 @@
 
       for (y = -10; y < 11; y++) {
         for (x = -20;x < 20; x++) {
-          const tileX = Math.floor(player.x) + x
-          const tileY = Math.floor(player.y) + y
+          const tileX = Math.floor(camera.x) + x
+          const tileY = Math.floor(camera.y) + y
           const h = getHeight(tileX,tileY)
 
           const points = [
