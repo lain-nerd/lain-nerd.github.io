@@ -1,0 +1,199 @@
+<html>
+    <body>
+        <canvas id="view" width=1000 height=600 style="background-color: black"/>
+    </body>
+    <script type="text/javascript">
+        const canvas = document.getElementById('view')
+        const ctx = canvas.getContext('2d');
+        ctx.lineWidth=1
+        ctx.strokeStyle = "white"
+        const screenCenter = {
+            x: canvas.width / 2,
+            y: canvas.height / 2
+        }
+
+        const scaleFactor = Math.min(screenCenter.x, screenCenter.y) * 0.8
+        let camZ = -6
+        const perspectiveScale = 0.4    //roughly equivalent to lens angle
+
+        function Color(r,g,b) {
+            this.shade = (darkness) => new Color(
+                r * (1-darkness),
+                g * (1-darkness),
+                b * (1-darkness)
+            )
+            this.toString = () => 'RGB('+r+','+g+','+b+')'
+        }
+
+        function Vector(x,y,z) {
+            this.x = x
+            this.y = y
+            this.z = z
+            this.rotateAroundX = (angle) => {
+                return new Vector(
+                    this.x,
+                    this.y * Math.cos(angle) - this.z * Math.sin(angle),
+                    this.z * Math.cos(angle) + this.y * Math.sin(angle)
+                )
+            }
+            this.rotateAroundY = (angle) => {
+                return new Vector(
+                    this.x * Math.cos(angle) - this.z * Math.sin(angle),
+                    this.y,
+                    this.z * Math.cos(angle) + this.x * Math.sin(angle)
+                )
+            }
+            this.rotateAroundZ = (angle) => {
+                return new Vector(
+                    this.x * Math.cos(angle) + this.y * Math.sin(angle),
+                    this.y * Math.cos(angle) - this.x * Math.sin(angle),
+                    this.z
+                )
+            }
+            this.project = () => {
+                return new Vector(
+                    this.x * scaleFactor/(perspectiveScale*(this.z-camZ)) + screenCenter.x,
+                    this.y * scaleFactor/(perspectiveScale*(this.z-camZ)) + screenCenter.y,
+                    0
+                )
+            }
+            this.midPoint = (vector) => {
+                return new Vector(
+                    (this.x + vector.x) / 2,
+                    (this.y + vector.y) / 2,
+                    (this.z + vector.z) / 2
+                )
+            }
+            this.minus = (vector) => {
+                return new Vector(
+                    this.x - vector.x,
+                    this.y - vector.y,
+                    this.z - vector.z
+                )
+            }
+            this.normalize = () => {
+                const length = Math.sqrt(this.x*this.x + this.y*this.y + this.z*this.z)
+                return new Vector(
+                    x / length,
+                    y / length,
+                    z / length
+                )
+            }
+
+            this.dot = (vector) => this.x*vector.x+this.y*vector.y+this.z*vector.z
+
+            this.angleTo = (vector) => Math.acos(this.normalize().dot(vector.normalize()))
+        }
+
+        function Face(points, color) {
+            this.getAverageDepth = () => {
+                return points.map(p=>p.z).reduce((a, b) => a + b) / points.length;
+            }
+            this.getNormal = () => {
+                const U = points[1].minus(points[0])
+                const V = points[2].minus(points[0])
+                return new Vector(
+                    U.y * V.z - U.z * V.y,
+                    U.z * V.x - U.x * V.z,
+                    U.x * V.y - U.y * V.x
+                )
+            }
+            this.rotateAroundX = (angle) => new Face(points.map(p => p.rotateAroundX(angle)), color)
+            this.rotateAroundY = (angle) => new Face(points.map(p => p.rotateAroundY(angle)), color)
+            this.rotateAroundZ = (angle) => new Face(points.map(p => p.rotateAroundZ(angle)), color)
+            this.project = () => new Face(points.map(p => p.project()), color)
+        
+            this.points = points
+            this.color = color
+        }
+
+        let sun = new Vector(-1,1,-0.5)
+
+        const p = {
+            'frontTopLeft': new Vector(-1,-1,-1),
+            'frontTopRight':  new Vector(1,-1,-1), 
+            'frontBottomRight': new Vector(1,1,-1),
+            'frontBottomLeft': new Vector(-1,1,-1),
+            'backTopLeft': new Vector(-1,-1,1),
+            'backTopRight':  new Vector(1,-1,1), 
+            'backBottomRight': new Vector(1,1,1),
+            'backBottomLeft': new Vector(-1,1,1),
+        }
+
+        const m = {
+            front: p.frontTopLeft.midPoint(p.frontBottomRight),
+            back: p.backTopRight.midPoint(p.backBottomLeft),
+            top: p.frontTopLeft.midPoint(p.backTopRight),
+            bottom: p.frontBottomLeft.midPoint(p.backBottomRight),
+            left: p.frontBottomLeft.midPoint(p.backTopLeft),
+            right: p.frontTopRight.midPoint(p.backBottomRight)
+        }
+
+        const makePyramid = (points, top, color) => points.map((point, i) => new Face(
+            [point, points[(i+1) % points.length], top], color
+        ))
+
+        const geometry = [
+            ...makePyramid([p.frontTopLeft, p.frontTopRight, p.frontBottomRight, p.frontBottomLeft], m.front, new Color(255,0,0)), //front
+            ...makePyramid([p.frontTopRight, p.backTopRight, p.backBottomRight, p.frontBottomRight], m.right, new Color(0,255,0)), //right
+            ...makePyramid([p.backTopRight, p.backTopLeft, p.backBottomLeft, p.backBottomRight ], m.back, new Color(0,0,255)), //back
+            ...makePyramid([ p.backTopLeft, p.frontTopLeft, p.frontBottomLeft, p.backBottomLeft ], m.left, new Color(255,255,0)), //left
+            ...makePyramid([ p.backTopLeft, p.backTopRight, p.frontTopRight, p.frontTopLeft ], m.top, new Color(0,255,255)), //top
+            ...makePyramid([ p.frontBottomLeft, p.frontBottomRight, p.backBottomRight, p.backBottomLeft ], m.bottom, new Color(255,0,255)) //bottom
+        ]
+
+        const drawPolygon = (points, color) => {
+            ctx.fillStyle = color.toString()
+            ctx.beginPath();
+            ctx.moveTo(points[0].x,points[0].y);
+            for (let i = 1; i<points.length; i++) {
+                ctx.lineTo(points[i].x, points[i].y);
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        let xRot = 0
+        let yRot = 0
+        let zRot = 0
+
+        const draw = () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+            const rotatedFaces = geometry.map(
+                face => face.rotateAroundX(xRot).rotateAroundY(yRot).rotateAroundZ(zRot)
+            )
+            
+            rotatedFaces.sort((a,b) => b.getAverageDepth() - a.getAverageDepth())
+
+            rotatedFaces.forEach(
+                face => {
+                    const angleToSun = face.getNormal().angleTo(sun)
+                    drawPolygon(
+                        face.project().points,
+                        face.color.shade(angleToSun / Math.PI)
+                    )
+                }
+            )
+        }
+
+        let lastRun = 0
+
+        const update = (timeElapsed) => {
+            xRot = timeElapsed / 1531
+            yRot = timeElapsed / 2153
+            zRot = timeElapsed / 2791
+            m.front.z = -1.5 + Math.sin(timeElapsed / 1000)
+            m.back.z = 1.5 - Math.sin(timeElapsed / 1000)
+            m.left.x = -1.5 + Math.sin(timeElapsed / 1000)
+            m.right.x = 1.5 - Math.sin(timeElapsed  /1000)
+            m.top.y = -1.5 + Math.sin(timeElapsed / 1000)
+            m.bottom.y = 1.5 - Math.sin(timeElapsed / 1000)
+            draw()
+            window.requestAnimationFrame(update)
+        }
+        window.requestAnimationFrame(update)
+        
+    </script>
+</html>
